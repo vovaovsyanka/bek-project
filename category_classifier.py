@@ -81,18 +81,17 @@ class CategoryClassifier:
         inputs = self.tokenizer(
             cleaned,
             truncation=True,
-            max_length=MAX_LENGTH,
+            max_length=256,
             return_tensors="pt"
         )
         inputs = {k: v.to(self.device) for k, v in inputs.items()}
 
         self.model.eval()
         with torch.no_grad():
-            outputs = seld.model(**inputs)
+            outputs = self.model(**inputs)
             logits = outputs.logits
-            probs = torch.softmax(logits, dim=-1)
-
-        return torch.argmax(logits, dim=-1).item()
+            # возвращаем 1 если предсказан класс 1 (target), иначе 0
+            return torch.argmax(logits, dim=-1).item() == 1
 
     def get_name(self) -> str:
         return f"CategoryBERT_{self.category}"

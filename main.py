@@ -63,7 +63,7 @@ class ProcessRequest(BaseModel):
     """Запрос на обработку через пайплайн."""
     query: str = Field(..., min_length=1, description="Текст запроса пользователя")
     category: int = Field(..., ge=3, le=5, description="Целевая категория (3, 4 или 5)")
-    difficulty: int = Field(..., ge=1, le=3, description="Уровень сложности: 1-TF-IDF, 2-LSTM, 3-BERT")
+    difficulty: int = Field(..., ge=1, le=4, description="Уровень сложности: 1-словарь, 2-TF-IDF, 3-LSTM, 4-BERT")
 
 
 class ProcessResponse(BaseModel):
@@ -81,7 +81,7 @@ async def process_request(data: ProcessRequest):
     Обрабатывает запрос пользователя через цепочку классификаторов:
     1. Общий BERT (опасный/безопасный)
     2. Категориальный BERT (проверка целевой категории)
-    3. Классификатор уровня (TF-IDF/LSTM/BERT)
+    3. Классификатор уровня (словарь/TF-IDF/LSTM/BERT)
     4. LLM (генерация ответа)
     """
     if pipeline is None:

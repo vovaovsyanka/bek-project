@@ -210,9 +210,9 @@
                 <div class="form-group">
                     <label for="category">Целевая категория:</label>
                     <select id="category" name="category" required>
-                        <option value="3">3 — Прямой запрос секрета</option>
-                        <option value="4">4 — Манипуляция/социальная инженерия</option>
-                        <option value="5">5 — Косвенный/обходной запрос</option>
+                        <option value="3">3 — Технические и "хакерские" подходы</option>
+                        <option value="4">4 — Социальная инженерия и манипуляции</option>
+                        <option value="5">5 — Философские и гипотетические рассуждения</option>
                     </select>
                     <span class="info-badge">Категория атаки</span>
                 </div>
@@ -220,9 +220,10 @@
                 <div class="form-group">
                     <label for="difficulty">Уровень сложности:</label>
                     <select id="difficulty" name="difficulty" required>
-                        <option value="1">1 — TF-IDF + Линейная модель</option>
-                        <option value="2">2 — LSTM</option>
-                        <option value="3">3 — BERT</option>
+                        <option value="1">1 — Словарь</option>
+                        <option value="2">2 — TF-IDF + Линейная модель</option>
+                        <option value="3">3 — LSTM</option>
+                        <option value="4">4 — BERT</option>
                     </select>
                     <span class="info-badge">Тип классификатора</span>
                 </div>
@@ -246,7 +247,6 @@
         const resultDiv = document.getElementById('result');
         const submitBtn = document.getElementById('submitBtn');
 
-        // Определяем базовый URL API (текущий хост)
         const API_BASE = window.location.origin;
 
         form.addEventListener('submit', async (e) => {
@@ -261,7 +261,6 @@
                 return;
             }
 
-            // Показываем загрузку
             submitBtn.disabled = true;
             resultDiv.innerHTML = '<span class="spinner"></span> Обработка запроса через пайплайн классификаторов...';
 
@@ -277,7 +276,6 @@
                 const data = await response.json();
 
                 if (response.ok) {
-                    // Определяем стиль ответа
                     let cssClass = '';
                     const text = data.response;
 
@@ -300,7 +298,6 @@
             }
         });
 
-        // Экранирование HTML
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;
