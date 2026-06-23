@@ -20,7 +20,7 @@ import random
 from typing import Optional
 
 from llm_client import LLMClient
-from base_classifier import RuBert, LSTM, TF_IDF, Dictionary
+from base_classifier import MultilingualBert, LSTM, TF_IDF, Dictionary, RoSBERTa
 from category_classifier import CategoryClassifier
 
 
@@ -32,7 +32,7 @@ class ProcessingPipeline:
         self.llm_client = LLMClient()
 
         # 1. Общий классификатор BERT (опасный / безопасный)
-        self.general_bert = RuBert()
+        self.general_bert = RoSBERTa()
 
         # 2. Категориальные классификаторы (ленивая инициализация при первом использовании)
         self._category_classifiers: dict[int, CategoryClassifier] = {}
@@ -42,7 +42,7 @@ class ProcessingPipeline:
             1: Dictionary(),   # уровень 1 - словарь
             2: TF_IDF(),       # уровень 2 - TF-IDF
             3: LSTM(),         # уровень 3 - LSTM
-            4: RuBert(),       # уровень 4 - BERT
+            4: MultilingualBert(),       # уровень 4 - BERT
         }
 
     def _get_category_classifier(self, category: int) -> CategoryClassifier:

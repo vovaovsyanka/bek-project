@@ -187,37 +187,74 @@ class Dictionary(BaseClassifier):
     def get_name(self) -> str:
         return "Dictionary"
 
-class RuBert(BaseClassifier):
+_PUNCT_CHARS = (
+    ".,!?;:()[]{}-_%$#@+=/\*&~"
+    "\u00ab\u00bb"        # « »
+    "\u201e\u201c\u201d"  # „ " "
+    "\u2018\u2019"        # ' '
+    "\u2026"              # …
+    "\u0022\u0027"        # " '
+)
+_punct_pattern = re.compile("[" + re.escape(_PUNCT_CHARS) + "]")
+_multi_space = re.compile(r"\s+")
+
+def clean_text(text: str) -> str:
+    text = str(text).strip().lower()
+    text = _punct_pattern.sub(" ", text)
+    text = _multi_space.sub(" ", text).strip()
+    return text
+
+class MultilingualBert(BaseClassifier):
+    def __init__(self):
+        super().__init__()
+        self.__device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.__max_length = 256
+        model_path = os.path.join("models", "multilingual-e5-small")
+
+        self.__model = AutoModelForSequenceClassification.from_pretrained(model_path)
+        self.__model = self.__model.to(self.__device)
+        self.__tokenizer = AutoTokenizer.from_pretrained("intfloat/multilingual-e5-small")
+        
+    def classify(self, text: str) -> int:
+        processed_text = clean_text(text)
+
+        inputs = self.__tokenizer(
+            processed_text,
+            truncation=True,
+            max_length=self.__max_length,
+            return_tensors="pt"
+        )
+        inputs = {k: v.to(self.__device) for k, v in inputs.items()}
+
+        self.__model.eval()
+        with torch.no_grad():
+            outputs = self.__model(**inputs)
+            prediction = outputs.logits.argmax(-1).item()
+
+        return prediction
+
+    def get_name(self) -> str:
+        return "MultilingualBert"
+
+class RoSBERTa(BaseClassifier):
     def __init__(self):
         super().__init__()
 
         self.__device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        model_path = os.path.join("models", "rubert")
-        
+        model_path = os.path.join("models", "rosberta")
+        self.__max_length = 256
         self.__model = AutoModelForSequenceClassification.from_pretrained(model_path)
         self.__model = self.__model.to(self.__device)
-        self.__tokenizer = AutoTokenizer.from_pretrained(model_path)
-
-    def __preprocess_text(self, text, min_word_length=3):
-        text = text.lower().strip()
-        text = re.sub(r"\d", "", text)
-        text = re.sub(r"[^a-zа-яё\s]", " ", text)
-        words = [word for word in text.split() if len(word) >= min_word_length]
-        text = " ".join(words)
-        return text.strip()
-
-    def __preprocess_function_single(self, example):
-        cleaned_text = self.__preprocess_text(example, min_word_length=2)
-        return self.__tokenizer(
-            cleaned_text,
-            truncation=True,
-            padding="max_length",
-            max_length=128,
-            return_tensors="pt"
-        )
+        self.__tokenizer = AutoTokenizer.from_pretrained("ai-forever/ru-en-RoSBERTa")
 
     def classify(self, text: str) -> int:
-        inputs = self.__preprocess_function_single(text)
+        processed_text = clean_text(text)
+        inputs = self.__tokenizer(
+            processed_text,
+            truncation=True,
+            max_length=self.__max_length,
+            return_tensors="pt"
+        )
         inputs = {k: v.to(self.__device) for k, v in inputs.items()}
 
         with torch.no_grad():
@@ -226,4 +263,4 @@ class RuBert(BaseClassifier):
         return prediction
     
     def get_name(self) -> str:
-        return "ruBert"
+        return "RoSBERTa"
