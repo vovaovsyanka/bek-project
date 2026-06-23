@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Защита от Prompt Injection</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1a1a2e;
+            color: #eee;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding-top: 40px;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 700px;
+            background: #16213e;
+            border-radius: 16px;
+            padding: 32px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+        }
+
+        h1 {
+            text-align: center;
+            color: #e94560;
+            margin-bottom: 8px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 24px;
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #a0a0b0;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        textarea, select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #0f3460;
+            border-radius: 8px;
+            background: #0f0f23;
+            color: #eee;
+            font-size: 15px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        textarea:focus, select:focus {
+            border-color: #e94560;
+        }
+
+        textarea {
+            min-height: 120px;
+            resize: vertical;
+            font-family: inherit;
+        }
+
+        select {
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+        }
+
+        .row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 8px;
+            background-color: #e94560;
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.2s;
+            margin-top: 8px;
+        }
+
+        button:hover {
+            background-color: #c73a52;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        button:disabled {
+            background-color: #555;
+            cursor: not-allowed;
+        }
+
+        .result-box {
+            margin-top: 24px;
+            padding: 20px;
+            border: 2px solid #0f3460;
+            border-radius: 8px;
+            background: #0f0f23;
+            min-height: 100px;
+        }
+
+        .result-box h3 {
+            color: #e94560;
+            margin-bottom: 12px;
+            font-size: 16px;
+        }
+
+        .result-text {
+            color: #ddd;
+            line-height: 1.6;
+            font-size: 15px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .result-text:empty::before {
+            content: "Ответ появится здесь...";
+            color: #555;
+            font-style: italic;
+        }
+
+        .error {
+            color: #ff6b6b;
+        }
+
+        .success {
+            color: #51cf66;
+        }
+
+        .warning {
+            color: #ffd93d;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .info-badge {
+            display: inline-block;
+            background: #0f3460;
+            color: #a0a0b0;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            margin-top: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Защита от Prompt Injection</h1>
+        <p class="subtitle">Обучающий сервис: обход классификаторов и защита LLM</p>
+
+        <form id="queryForm">
+            <!-- Поле ввода запроса -->
+            <div class="form-group">
+                <label for="query">Ваш запрос:</label>
+                <textarea
+                    id="query"
+                    name="query"
+                    placeholder="Введите ваш prompt-запрос здесь..."
+                    required
+                ></textarea>
+            </div>
+
+            <!-- Выбор категории и уровня сложности -->
+            <div class="row">
+                <div class="form-group">
+                    <label for="category">Целевая категория:</label>
+                    <select id="category" name="category" required>
+                        <option value="3">3 — Прямой запрос секрета</option>
+                        <option value="4">4 — Манипуляция/социальная инженерия</option>
+                        <option value="5">5 — Косвенный/обходной запрос</option>
+                    </select>
+                    <span class="info-badge">Категория атаки</span>
+                </div>
+
+                <div class="form-group">
+                    <label for="difficulty">Уровень сложности:</label>
+                    <select id="difficulty" name="difficulty" required>
+                        <option value="1">1 — TF-IDF + Линейная модель</option>
+                        <option value="2">2 — LSTM</option>
+                        <option value="3">3 — BERT</option>
+                    </select>
+                    <span class="info-badge">Тип классификатора</span>
+                </div>
+            </div>
+
+            <!-- Кнопка отправки -->
+            <button type="submit" id="submitBtn">
+                Отправить запрос
+            </button>
+        </form>
+
+        <!-- Результат -->
+        <div class="result-box">
+            <h3>Ответ сервиса:</h3>
+            <div class="result-text" id="result"></div>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('queryForm');
+        const resultDiv = document.getElementById('result');
+        const submitBtn = document.getElementById('submitBtn');
+
+        // Определяем базовый URL API (текущий хост)
+        const API_BASE = window.location.origin;
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const query = document.getElementById('query').value.trim();
+            const category = parseInt(document.getElementById('category').value);
+            const difficulty = parseInt(document.getElementById('difficulty').value);
+
+            if (!query) {
+                resultDiv.innerHTML = '<span class="error">Введите запрос!</span>';
+                return;
+            }
+
+            // Показываем загрузку
+            submitBtn.disabled = true;
+            resultDiv.innerHTML = '<span class="spinner"></span> Обработка запроса через пайплайн классификаторов...';
+
+            try {
+                const response = await fetch(`${API_BASE}/process`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ query, category, difficulty }),
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Определяем стиль ответа
+                    let cssClass = '';
+                    const text = data.response;
+
+                    if (text.includes('Ошибка')) {
+                        cssClass = 'error';
+                    } else if (text.includes('опасный') || text.includes('усилить') || text.includes('не соответствует')) {
+                        cssClass = 'warning';
+                    } else {
+                        cssClass = 'success';
+                    }
+
+                    resultDiv.innerHTML = `<span class="${cssClass}">${escapeHtml(text)}</span>`;
+                } else {
+                    resultDiv.innerHTML = `<span class="error">Ошибка сервера: ${escapeHtml(data.detail || 'Неизвестная ошибка')}</span>`;
+                }
+            } catch (err) {
+                resultDiv.innerHTML = `<span class="error">Ошибка соединения: ${escapeHtml(err.message)}<br><br>Убедитесь, что бэкенд запущен на ${API_BASE}</span>`;
+            } finally {
+                submitBtn.disabled = false;
+            }
+        });
+
+        // Экранирование HTML
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
