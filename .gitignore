@@ -54,3 +54,5 @@ logs/
 
 # Custom
 models/
+test_models.py
+test_results.csv

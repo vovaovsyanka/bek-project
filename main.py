@@ -2,33 +2,31 @@
 FastAPI backend для сервиса защиты от промпт-инъекций.
 
 API:
-    POST /process — обработка запроса через пайплайн классификаторов
-    GET  /      — отдаёт статический HTML (фронтенд)
+  POST /predict  — игровой эндпоинт: level + text → text + passed
+  GET  /health   — health-check
+  GET  /         — статический фронтенд
 """
 
 import os
-from typing import Optional
+from typing import Optional, Literal
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import uvicorn
 
 from pipeline import ProcessingPipeline
 
+# ── Приложение ───────────────────────────────────────────────────────────────
 
-# ============================================================
-# Инициализация FastAPI приложения
-# ============================================================
 app = FastAPI(
     title="Prompt Injection Defense Service",
     description="Сервис для обучения защите от промпт-инъекций LLM",
-    version="1.0.0"
+    version="1.0.0",
 )
 
-# CORS (для разработки — разрешаем всё)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -37,15 +35,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ============================================================
-# Пайплайн обработки (инициализируется при старте)
-# ============================================================
+# ── Пайплайн ─────────────────────────────────────────────────────────────────
+
 pipeline: Optional[ProcessingPipeline] = None
 
 
 @app.on_event("startup")
 async def startup_event():
-    """Инициализация при старте сервера."""
     global pipeline
     print("[*] Инициализация пайплайна...")
     try:
@@ -56,77 +52,74 @@ async def startup_event():
         raise
 
 
-# ============================================================
-# Pydantic модели запросов/ответов
-# ============================================================
-class ProcessRequest(BaseModel):
-    """Запрос на обработку через пайплайн."""
-    query: str = Field(..., min_length=1, description="Текст запроса пользователя")
-    category: int = Field(..., ge=3, le=5, description="Целевая категория (3, 4 или 5)")
-    difficulty: int = Field(..., ge=1, le=4, description="Уровень сложности: 1-словарь, 2-TF-IDF, 3-LSTM, 4-BERT")
+# ── Модели ───────────────────────────────────────────────────────────────────
+
+class PredictRequest(BaseModel):
+    level: Literal["tony_stark", "subnautica", "cyberpunk"] = Field(
+        ...,
+        description="Игровой уровень: tony_stark (кат. 3), subnautica (кат. 4), cyberpunk (кат. 5)",
+    )
+    text: str = Field(..., min_length=1, description="Текст пользователя")
 
 
-class ProcessResponse(BaseModel):
-    """Ответ от пайплайна."""
-    response: str = Field(..., description="Текстовый ответ от сервиса")
-    status: str = Field("ok", description="Статус обработки")
+class PredictResponse(BaseModel):
+    text: str = Field(..., description="Ответ сервиса (пустая строка, если пароль угадан)")
+    passed: bool = Field(..., description="True — пользователь угадал пароль и прошёл уровень")
 
 
-# ============================================================
-# API Endpoints
-# ============================================================
-@app.post("/process", response_model=ProcessResponse)
-async def process_request(data: ProcessRequest):
+# ── Эндпоинты ────────────────────────────────────────────────────────────────
+
+@app.post("/predict", response_model=PredictResponse)
+async def predict(data: PredictRequest):
     """
-    Обрабатывает запрос пользователя через цепочку классификаторов:
-    1. Общий BERT (опасный/безопасный)
-    2. Категориальный BERT (проверка целевой категории)
-    3. Классификатор уровня (словарь/TF-IDF/LSTM/BERT)
-    4. LLM (генерация ответа)
+    Игровой эндпоинт.
+
+    Принимает level и text, возвращает text и passed.
+    Пайплайн:
+      1. Инициализирует/берёт пароль для категории уровня.
+      2. Если text совпал с паролем → passed=True, text="", пароль меняется.
+      3. Иначе — прогоняет через BERT → категорию → TF-IDF → LLM с текущим паролем.
+      4. Всегда возвращает ответ, даже при внутренней ошибке.
     """
     if pipeline is None:
-        raise HTTPException(status_code=503, detail="Пайплайн не инициализирован")
+        return PredictResponse(
+            text="Сервис временно недоступен. Пайплайн не инициализирован.",
+            passed=False,
+        )
 
     try:
-        result = pipeline.process(
-            query=data.query,
-            category=data.category,
-            difficulty=data.difficulty
-        )
-        return ProcessResponse(response=result, status="ok")
+        result = pipeline.process(text=data.text, level=data.level)
+        return PredictResponse(text=result["text"], passed=result["passed"])
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка обработки: {str(e)}")
+        return PredictResponse(
+            text=f"Произошла непредвиденная ошибка: {str(e)}",
+            passed=False,
+        )
 
 
 @app.get("/health")
 async def health_check():
-    """Проверка работоспособности сервиса."""
-    return {
-        "status": "ok",
-        "pipeline_ready": pipeline is not None
-    }
+    return {"status": "ok", "pipeline_ready": pipeline is not None}
 
 
-# ============================================================
-# Статический фронтенд
-# ============================================================
+# ── Фронтенд ─────────────────────────────────────────────────────────────────
+
 static_dir = os.path.join(os.path.dirname(__file__), "static")
+
 if os.path.isdir(static_dir):
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 
 @app.get("/")
 async def serve_frontend():
-    """Отдаёт главную страницу (фронтенд)."""
     index_path = os.path.join(static_dir, "index.html")
     if os.path.exists(index_path):
         return FileResponse(index_path)
     raise HTTPException(status_code=404, detail="Frontend not found")
 
 
-# ============================================================
-# Точка входа
-# ============================================================
+# ── Точка входа ──────────────────────────────────────────────────────────────
+
 if __name__ == "__main__":
     host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", 8000))

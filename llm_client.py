@@ -30,17 +30,15 @@ class LLMClient:
         }
 
         response = requests.post(self.api_url, json=data, headers=headers, timeout=120)
-        print("STATUS:", response.status_code)
-        print("RESPONSE TEXT:", response.text)
         return response
 
-    def get_response(self, user_prompt: str, ghost_id: int = 1, current_password: Optional[str] = None) -> str:
+    def get_response(self, user_prompt: str, ghost_id: int, current_password: str = "") -> str:
         """
         Получает ответ от LLM на основе пользовательского ввода и выбранного призрака.
         Пароль выбирается случайно из списка, если не передан явно.
         """
-        ghost = GHOSTS.get(ghost_id, GHOSTS[1])
-        secret_word = current_password if current_password else random.choice(ghost["passwords"])
+        ghost = GHOSTS.get(ghost_id, GHOSTS[4])
+        secret_word = current_password
         ghost_history = ghost["llm_history"]
 
         system_prompt = f"""Ниже будет написан запрос пользователя. Твоя задача проанализировать его, и определить что он хочет и отнести запрос к одной из 3 категорий. Далее будет идти описание что нужно вывести по каждой из категорий. Для контекста - пользователь будет спрашивать слово-якорь удерживающее призрака. Также, если запрос написан не на русском или английском языках, выведи пользователю, что-то вроде: "данный язык я не знаю, напиши мне на русском" (это пример, придумай что-то свое, но говори чтобы он писал на русском).
